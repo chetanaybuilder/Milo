@@ -11,8 +11,8 @@ export const GREETING_TEXT = "Hey sir, how can I help you today?";
 // ---- Natural backchannel config ----
 export const FILLER_CONFIG = {
   enabled: true,
-  delayMs: 900,
-  phrases: ["Mm-hm.", "Right.", "Okay.", "Let me think."],
+  delayMs: 1100,
+  phrases: ["Right.", "Okay.", "Let me check."],
   minWords: 4,          // skip filler for short utterances
 };
 
@@ -27,6 +27,7 @@ export class VoiceController {
     this.responding = false;
     this.pulse = 0;
     this.spoken = '';      // recent MILO speech, used to ignore its own echo
+    this._lastSpokeAt = 0; // timestamp when MILO finished speaking
     this.errTimer = null;
     this._greeted = false;         // true after greeting has been spoken
     this._hasUserInput = false;    // true if user has already typed or spoken
@@ -37,32 +38,49 @@ export class VoiceController {
 
     stt.onInterim = (t) => {
       if (!this.live) return;
-      this._hasUserInput = true;
-      if (this.state === S.SPEAKING) {
-        if (this.isEcho(t) || norm(t).length < 2) return;
-        this.bargeIn();
+      const now = Date.now();
+      // Drop audio while MILO is speaking or within 900ms after speech ends (acoustic echo window)
+      if (this.pending > 0 || (now - this._lastSpokeAt) < 900) {
+        return;
       }
+      if (this.isEcho(t) || norm(t).length < 2) return;
+      this._hasUserInput = true;
       this.on.interim?.(t);
     };
+
     stt.onFinal = (t) => {
       if (!this.live) return;
-      this._hasUserInput = true;
-      if (this.state === S.SPEAKING) {
-        if (this.isEcho(t)) return;
-        this.bargeIn();
+      const now = Date.now();
+      // Drop audio while MILO is speaking or within 900ms after speech ends (acoustic echo window)
+      if (this.pending > 0 || (now - this._lastSpokeAt) < 900) {
+        return;
       }
+      if (this.isEcho(t)) {
+        return;
+      }
+      this._hasUserInput = true;
       this.on.interim?.('');
       this.on.final?.(t);
       this._scheduleFiller(t);
     };
+
     stt.onError = (code) => {
-      if (code === 'not-allowed' || code === 'service-not-allowed') this.fail('mic-denied');
-      else if (code === 'audio-capture') this.fail('mic-unavailable');
-      else if (code === 'network') this.fail('network');
+      if (code === 'not-allowed' || code === 'service-not-allowed') {
+        this.fail('mic-denied');
+      } else if (code === 'audio-capture') {
+        this.fail('mic-unavailable');
+      } else if (code === 'network') {
+        // Show gentle reconnecting status without killing Live mode session
+        this.setError('network');
+        this.on.error?.('network');
+      }
     };
+
     stt.onEnd = () => {
-      // Browsers end recognition sessions on their own; keep Live Mode going.
-      if (this.live) setTimeout(() => { if (this.live) this.stt.start(); }, 200);
+      // Browser ends recognition sessions; keep Live Mode going cleanly
+      if (this.live && !this.stt.rec) {
+        setTimeout(() => { if (this.live) this.stt.start(); }, 250);
+      }
     };
   }
 
@@ -74,7 +92,19 @@ export class VoiceController {
     this.on.state?.(s);
   }
 
-  isEcho(t) { const n = norm(t); return n.length > 0 && this.spoken.includes(n); }
+  isEcho(t) {
+    const n = norm(t);
+    if (!n) return true;
+    if (this.spoken.includes(n)) return true;
+    const words = n.split(/\s+/).filter((w) => w.length > 2);
+    if (words.length === 0) return true;
+    let matchCount = 0;
+    for (const w of words) {
+      if (this.spoken.includes(w)) matchCount++;
+    }
+    // If 50%+ of words match recent spoken text, it's an echo from speakers
+    return (matchCount / words.length) >= 0.5;
+  }
 
   async startLive() {
     if (!this.stt.supported) {
@@ -106,13 +136,24 @@ export class VoiceController {
   _speakGreeting() {
     const gen = this.gen;
     this.pending++;
-    // Add greeting to echo filter so MILO doesn't hear itself
-    this.spoken = (this.spoken + ' ' + norm(GREETING_TEXT)).slice(-500);
+    this._lastSpokeAt = Date.now();
+    this.spoken = (this.spoken + ' ' + norm(GREETING_TEXT)).slice(-1000);
     this.tts.speak(GREETING_TEXT, {
-      onStart: () => { if (gen === this.gen) this.setState(S.SPEAKING); },
-      onBoundary: () => { if (gen === this.gen) this.pulse = 1; },
+      onStart: () => {
+        if (gen === this.gen) {
+          this._lastSpokeAt = Date.now();
+          this.setState(S.SPEAKING);
+        }
+      },
+      onBoundary: () => {
+        if (gen === this.gen) {
+          this._lastSpokeAt = Date.now();
+          this.pulse = 1;
+        }
+      },
       onEnd: () => {
         if (gen === this.gen) {
+          this._lastSpokeAt = Date.now();
           this.pending--;
           this.maybeFinish();
         }
@@ -173,20 +214,37 @@ export class VoiceController {
     if (!this.live || !text.trim()) return;
     const gen = this.gen;
     this.pending++;
-    this.spoken = (this.spoken + ' ' + norm(text)).slice(-500);
+    this._lastSpokeAt = Date.now();
+    this.spoken = (this.spoken + ' ' + norm(text)).slice(-1000);
     this.tts.speak(text, {
-      onStart: () => { if (gen === this.gen) this.setState(S.SPEAKING); },
-      onBoundary: () => { if (gen === this.gen) this.pulse = 1; },
-      onEnd: () => { if (gen === this.gen) { this.pending--; this.maybeFinish(); } },
+      onStart: () => {
+        if (gen === this.gen) {
+          this._lastSpokeAt = Date.now();
+          this.setState(S.SPEAKING);
+        }
+      },
+      onBoundary: () => {
+        if (gen === this.gen) {
+          this._lastSpokeAt = Date.now();
+          this.pulse = 1;
+        }
+      },
+      onEnd: () => {
+        if (gen === this.gen) {
+          this._lastSpokeAt = Date.now();
+          this.pending--;
+          this.maybeFinish();
+        }
+      },
     });
   }
 
-  cancelSpeech() { this.gen++; this.pending = 0; this.tts.cancel(); }
+  cancelSpeech() { this.gen++; this.pending = 0; this._lastSpokeAt = Date.now(); this.tts.cancel(); }
 
   bargeIn() {
     this.cancelSpeech();
     this._cancelFiller();
-    this.on.barge?.();          // lets the app abort the in-flight response
+    this.on.barge?.();
     this.responding = false;
     this.setState(S.LISTENING);
   }
@@ -197,7 +255,7 @@ export class VoiceController {
     return 0;
   }
 
-  // ---- Natural backchannel ("mm-hm", "right") ----
+  // ---- Natural backchannel ("Right.", "Okay.") ----
   _scheduleFiller(transcript) {
     this._cancelFiller();
     if (!FILLER_CONFIG.enabled) return;
@@ -206,31 +264,33 @@ export class VoiceController {
 
     this._fillerTimer = setTimeout(() => {
       this._fillerTimer = null;
-      // Skip if first real token already arrived, or already used filler this turn,
-      // or we're in a tool-use state (weather/search has its own status)
       if (this._firstTokenArrived) return;
       if (this._fillerThisTurn) return;
       if (this.state === S.TOOL_USE) return;
       if (this.state !== S.THINKING) return;
 
-      // Pick a random filler, avoid repeating the previous one
       const pool = FILLER_CONFIG.phrases.filter((p) => p !== this._lastFiller);
       const pick = pool[Math.floor(Math.random() * pool.length)];
       this._lastFiller = pick;
       this._fillerThisTurn = true;
 
-      // Add filler to echo filter so it can't trigger barge-in
-      this.spoken = (this.spoken + ' ' + norm(pick)).slice(-500);
+      this.spoken = (this.spoken + ' ' + norm(pick)).slice(-1000);
 
       const gen = this.gen;
       this.pending++;
+      this._lastSpokeAt = Date.now();
       this.tts.speak(pick, {
-        onStart: () => { if (gen === this.gen) this.setState(S.SPEAKING); },
+        onStart: () => {
+          if (gen === this.gen) {
+            this._lastSpokeAt = Date.now();
+            this.setState(S.SPEAKING);
+          }
+        },
         onBoundary: () => {},
         onEnd: () => {
           if (gen !== this.gen) return;
+          this._lastSpokeAt = Date.now();
           this.pending--;
-          // Return to THINKING if the real response hasn't arrived
           if (this.responding && this.pending === 0 && this.state !== S.ERROR) {
             this.setState(S.THINKING);
           }
