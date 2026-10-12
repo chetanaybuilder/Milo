@@ -117,6 +117,7 @@ export function useMilo(prefs) {
 
   const toggleLive = useCallback(() => (live ? voice.stopLive() : voice.startLive()), [live, voice]);
   const getLevel = useCallback(() => voice.getLevel(), [voice]);
+  const interrupt = useCallback(() => voice.bargeIn(), [voice]);
 
-  return { messages, state, tool, live, interim, notice, send, toggleLive, getLevel, support: voice.support };
+  return { messages, state, tool, live, interim, notice, send, toggleLive, getLevel, interrupt, support: voice.support };
 }

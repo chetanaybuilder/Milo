@@ -21,18 +21,9 @@ export class VoiceController {
 
     stt.onInterim = (t) => {
       if (!this.live) return;
-
-      // If user speaks while MILO is speaking, allow barge-in only if not echoing Milo
-      if (this.state === S.SPEAKING || this.pending > 0) {
-        if (this._isMiloEcho(t)) {
-          return;
-        }
-        if (norm(t).length >= 4) {
-          this.bargeIn();
-        } else {
-          return;
-        }
-      }
+      // When not in listening state or text matches Milo speech, ignore
+      if (this.state !== S.LISTENING) return;
+      if (this._isMiloEcho(t)) return;
 
       this.on.interim?.(t);
     };
@@ -40,17 +31,20 @@ export class VoiceController {
     stt.onFinal = (t) => {
       if (!this.live) return;
 
-      // If Milo is currently speaking, filter out echo
-      if (this.state === S.SPEAKING || this.pending > 0) {
-        if (this._isMiloEcho(t)) {
-          console.log('[VoiceController] Filtered speaker echo:', t);
-          return;
-        }
-        this.bargeIn();
+      // Drop any late transcript if Milo is not actively listening
+      if (this.state !== S.LISTENING) {
+        console.log('[VoiceController] Ignored speech while not listening (' + this.state + '):', t);
+        return;
       }
 
-      // If speech finished very recently, filter trailing reverberation echo
-      if (Date.now() - this._lastSpokeAt < 1200 && this._isMiloEcho(t)) {
+      // Filter out any echo of Milo's own voice
+      if (this._isMiloEcho(t)) {
+        console.log('[VoiceController] Filtered speaker echo:', t);
+        return;
+      }
+
+      // Filter trailing room reverberation echo
+      if (Date.now() - this._lastSpokeAt < 1400 && this._isMiloEcho(t)) {
         console.log('[VoiceController] Filtered trailing room echo:', t);
         return;
       }
@@ -104,6 +98,7 @@ export class VoiceController {
       return false;
     }
 
+    clearTimeout(this._micResumeTimer);
     this.live = true;
     this.pending = 0;
     this.responding = false;
@@ -124,6 +119,7 @@ export class VoiceController {
   }
 
   stopLive() {
+    clearTimeout(this._micResumeTimer);
     this.live = false;
     this.stt.stop();
     this.meter.stop();
@@ -153,6 +149,9 @@ export class VoiceController {
   // ---- response lifecycle (driven by the assistant flow) ----
   beginResponse() {
     this.responding = true;
+    clearTimeout(this._micResumeTimer);
+    // Pause STT completely while Milo is thinking to prevent hearing noise/echo
+    this.stt.stop();
     this.setState(S.THINKING);
   }
 
@@ -169,6 +168,15 @@ export class VoiceController {
     if (this.pending <= 0 && !this.responding && this.state !== S.ERROR) {
       this.pending = 0;
       this.setState(this.live ? S.LISTENING : S.IDLE);
+      if (this.live) {
+        // Wait 350ms for room acoustics and speaker output to completely settle before opening mic
+        clearTimeout(this._micResumeTimer);
+        this._micResumeTimer = setTimeout(() => {
+          if (this.live && this.state === S.LISTENING && this.pending <= 0 && !this.responding) {
+            this.stt.start();
+          }
+        }, 350);
+      }
     }
   }
 
@@ -176,8 +184,12 @@ export class VoiceController {
     if (!this.live || !text.trim()) return;
     const gen = this.gen;
     this.pending++;
-    this._spokenHistory = ((this._spokenHistory || '') + ' ' + norm(text)).slice(-1000);
+    this._spokenHistory = ((this._spokenHistory || '') + ' ' + norm(text)).slice(-1500);
     this._lastSpokeAt = Date.now();
+    clearTimeout(this._micResumeTimer);
+
+    // Stop mic while Milo is speaking so Milo never hears his own voice
+    this.stt.stop();
     this.setState(S.SPEAKING);
 
     // Safety watchdog: ensure pending never stays stuck if speech synthesis drops onEnd
@@ -222,10 +234,15 @@ export class VoiceController {
   }
 
   bargeIn() {
+    clearTimeout(this._micResumeTimer);
     this.cancelSpeech();
     this.on.barge?.();
     this.responding = false;
-    this.setState(S.LISTENING);
+    this.pending = 0;
+    this.setState(this.live ? S.LISTENING : S.IDLE);
+    if (this.live) {
+      this.stt.start();
+    }
   }
 
   getLevel() {

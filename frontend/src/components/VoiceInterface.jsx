@@ -1,16 +1,26 @@
-export default function VoiceInterface({ live, onToggle, interim, notice, support, state }) {
+export default function VoiceInterface({ live, onToggle, onInterrupt, interim, notice, support, state }) {
   let statusText = '';
   if (interim) {
     statusText = interim;
   } else if (live) {
-    if (state === 'SPEAKING') statusText = 'MILO is speaking...';
+    if (state === 'SPEAKING') statusText = 'MILO is speaking... (Tap orb or button to interrupt)';
     else if (state === 'THINKING' || state === 'TOOL_USE') statusText = 'Thinking...';
     else statusText = 'Listening... Speak anytime';
   }
 
   return (
     <div className="voice">
-      <p className="interim" aria-live="polite">{statusText}</p>
+      <div className="voice-status-row">
+        <p className="interim" aria-live="polite">{statusText}</p>
+        {live && state === 'SPEAKING' && (
+          <button className="interrupt-btn" onClick={onInterrupt} aria-label="Interrupt MILO speaking">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+              <rect x="5" y="5" width="14" height="14" rx="2" />
+            </svg>
+            <span>Interrupt</span>
+          </button>
+        )}
+      </div>
       <button className={`mic${live ? ' on' : ''}`} onClick={onToggle} aria-pressed={live}
         aria-label={live ? 'Turn off Live Mode' : 'Turn on Live Mode'}>
         <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
