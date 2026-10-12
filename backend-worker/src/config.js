@@ -24,14 +24,19 @@ export function corsOrigins(env) {
   const raw = env?.CORS_ORIGINS || '';
   if (!raw) {
     return [
+      'https://milo-frontend.pages.dev',
       'http://localhost:5173',
       'http://localhost:4173',
       'http://127.0.0.1:5173',
       'http://127.0.0.1:4173',
     ];
   }
-  return raw
+  const origins = raw
     .split(',')
     .map((o) => o.trim().replace(/\/+$/, ''))
     .filter(Boolean);
+  if (!origins.includes('https://milo-frontend.pages.dev')) {
+    origins.push('https://milo-frontend.pages.dev');
+  }
+  return origins;
 }
