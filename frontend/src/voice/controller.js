@@ -1,17 +1,9 @@
-// Voice state machine: owns STT, TTS, mic meter, barge-in, greeting, backchannel.
+// Voice state machine: owns STT, TTS, mic meter, barge-in, echo cancellation.
 export const S = {
   IDLE: 'IDLE', LISTENING: 'LISTENING', THINKING: 'THINKING',
   TOOL_USE: 'TOOL_USE', SPEAKING: 'SPEAKING', ERROR: 'ERROR',
 };
 const norm = (t) => t.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-
-// ---- Premium greeting (spoken once on first "Go live") ----
-export const GREETING_TEXT = "Hey sir, how can I help you today?";
-
-// ---- Natural backchannel config (disabled to prevent audio feedback) ----
-export const FILLER_CONFIG = {
-  enabled: false,
-};
 
 export class VoiceController {
   // on: { state, interim, final, barge, live, error }
@@ -24,16 +16,18 @@ export class VoiceController {
     this.responding = false;
     this.pulse = 0;
     this.errTimer = null;
-    this._greeted = false;         // true after greeting has been spoken
-    this._hasUserInput = false;    // true if user has already typed or spoken
+    this._spokenHistory = '';
+    this._lastSpokeAt = 0;
 
     stt.onInterim = (t) => {
       if (!this.live) return;
-      this._hasUserInput = true;
 
-      // If user speaks while MILO is speaking, allow barge-in
-      if (this.state === S.SPEAKING) {
-        if (norm(t).length >= 5) {
+      // If user speaks while MILO is speaking, allow barge-in only if not echoing Milo
+      if (this.state === S.SPEAKING || this.pending > 0) {
+        if (this._isMiloEcho(t)) {
+          return;
+        }
+        if (norm(t).length >= 4) {
           this.bargeIn();
         } else {
           return;
@@ -45,11 +39,20 @@ export class VoiceController {
 
     stt.onFinal = (t) => {
       if (!this.live) return;
-      this._hasUserInput = true;
 
-      // If user speaks while MILO is speaking, allow barge-in
-      if (this.state === S.SPEAKING) {
+      // If Milo is currently speaking, filter out echo
+      if (this.state === S.SPEAKING || this.pending > 0) {
+        if (this._isMiloEcho(t)) {
+          console.log('[VoiceController] Filtered speaker echo:', t);
+          return;
+        }
         this.bargeIn();
+      }
+
+      // If speech finished very recently, filter trailing reverberation echo
+      if (Date.now() - this._lastSpokeAt < 1200 && this._isMiloEcho(t)) {
+        console.log('[VoiceController] Filtered trailing room echo:', t);
+        return;
       }
 
       const text = t.trim();
@@ -74,6 +77,20 @@ export class VoiceController {
 
   get support() { return { stt: this.stt.supported, tts: this.tts.supported }; }
 
+  _isMiloEcho(text) {
+    const input = norm(text);
+    if (!input) return false;
+    const history = norm(this._spokenHistory || '');
+    if (!history) return false;
+    if (history.includes(input)) return true;
+    const words = input.split(' ').filter(Boolean);
+    if (words.length >= 2) {
+      const matchCount = words.filter((w) => history.includes(w)).length;
+      if (matchCount / words.length >= 0.7) return true;
+    }
+    return false;
+  }
+
   setState(s) {
     if (this.state === s) return;
     this.state = s;
@@ -87,62 +104,23 @@ export class VoiceController {
       return false;
     }
 
+    this.live = true;
+    this.pending = 0;
+    this.responding = false;
+    this.on.live?.(true);
+
+    // Enter LISTENING state and start microphone STT immediately
+    this.setState(S.LISTENING);
+    this.stt.start();
+
+    // Start level meter non-blockingly for visual animations
     try {
       await this.meter.start();
     } catch (e) {
-      const code = e?.name === 'NotAllowedError' ? 'mic-denied' : 'mic-unavailable';
-      this.on.error?.(code);
-      this.setError(code);
-      return false;
-    }
-
-    this.live = true;
-    this.on.live?.(true);
-
-    // Speak greeting first if first time, then start listening
-    if (!this._greeted && !this._hasUserInput) {
-      this._greeted = true;
-      this._speakGreeting(() => {
-        if (this.live) {
-          this.setState(S.LISTENING);
-          this.stt.start();
-        }
-      });
-    } else {
-      this.setState(S.LISTENING);
-      this.stt.start();
+      console.warn('[VoiceController] Audio level meter failed to start:', e);
     }
 
     return true;
-  }
-
-  _speakGreeting(onDone) {
-    const gen = this.gen;
-    this.pending = 1;
-    this.setState(S.SPEAKING);
-
-    let finished = false;
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      if (gen === this.gen) {
-        this.pending = 0;
-        onDone?.();
-      }
-    };
-
-    // Safety watchdog: ensure callback fires even if browser speech drops onend
-    setTimeout(finish, 4000);
-
-    this.tts.speak(GREETING_TEXT, {
-      onStart: () => {
-        if (gen === this.gen) this.setState(S.SPEAKING);
-      },
-      onBoundary: () => {
-        if (gen === this.gen) this.pulse = 1;
-      },
-      onEnd: finish,
-    });
   }
 
   stopLive() {
@@ -151,6 +129,7 @@ export class VoiceController {
     this.meter.stop();
     this.cancelSpeech();
     this.responding = false;
+    this.pending = 0;
     this.on.interim?.('');
     this.on.live?.(false);
     this.setState(S.IDLE);
@@ -197,17 +176,37 @@ export class VoiceController {
     if (!this.live || !text.trim()) return;
     const gen = this.gen;
     this.pending++;
+    this._spokenHistory = ((this._spokenHistory || '') + ' ' + norm(text)).slice(-1000);
+    this._lastSpokeAt = Date.now();
     this.setState(S.SPEAKING);
+
+    // Safety watchdog: ensure pending never stays stuck if speech synthesis drops onEnd
+    const wordCount = text.split(/\s+/).length;
+    const timeoutMs = Math.max(5000, wordCount * 650);
+    setTimeout(() => {
+      if (gen === this.gen && this.pending > 0) {
+        console.warn('[VoiceController] Watchdog timeout resetting speech state');
+        this.pending = Math.max(0, this.pending - 1);
+        this.maybeFinish();
+      }
+    }, timeoutMs);
 
     this.tts.speak(text, {
       onStart: () => {
-        if (gen === this.gen) this.setState(S.SPEAKING);
+        if (gen === this.gen) {
+          this._lastSpokeAt = Date.now();
+          this.setState(S.SPEAKING);
+        }
       },
       onBoundary: () => {
-        if (gen === this.gen) this.pulse = 1;
+        if (gen === this.gen) {
+          this._lastSpokeAt = Date.now();
+          this.pulse = 1;
+        }
       },
       onEnd: () => {
         if (gen === this.gen) {
+          this._lastSpokeAt = Date.now();
           this.pending = Math.max(0, this.pending - 1);
           this.maybeFinish();
         }
@@ -218,6 +217,7 @@ export class VoiceController {
   cancelSpeech() {
     this.gen++;
     this.pending = 0;
+    this._lastSpokeAt = Date.now();
     this.tts.cancel();
   }
 
