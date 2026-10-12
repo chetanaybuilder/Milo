@@ -22,9 +22,13 @@ export function tavilyKey(env) {
  */
 export function corsOrigins(env) {
   const raw = env?.CORS_ORIGINS || '';
+  const productionOrigins = [
+    'https://milo-voice.pages.dev',
+    'https://milo-frontend.pages.dev',
+  ];
   if (!raw) {
     return [
-      'https://milo-frontend.pages.dev',
+      ...productionOrigins,
       'http://localhost:5173',
       'http://localhost:4173',
       'http://127.0.0.1:5173',
@@ -35,8 +39,10 @@ export function corsOrigins(env) {
     .split(',')
     .map((o) => o.trim().replace(/\/+$/, ''))
     .filter(Boolean);
-  if (!origins.includes('https://milo-frontend.pages.dev')) {
-    origins.push('https://milo-frontend.pages.dev');
+  for (const prod of productionOrigins) {
+    if (!origins.includes(prod)) {
+      origins.push(prod);
+    }
   }
   return origins;
 }
