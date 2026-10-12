@@ -53,6 +53,7 @@ export class BrowserTts extends Tts {
     this.supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
     this.opts = { rate, pitch, volume, voice };
     this.voice = null;
+    this._activeUtterances = new Set();
     if (this.supported) window.speechSynthesis.onvoiceschanged = () => { this.voice = null; };
   }
 
@@ -71,31 +72,40 @@ export class BrowserTts extends Tts {
 
   speak(rawText, { onStart, onBoundary, onEnd } = {}) {
     if (!this.supported) { onEnd?.(); return; }
+    try { window.speechSynthesis.resume(); } catch {}
     const cleaned = cleanForSpeech(rawText);
     if (!cleaned) { onEnd?.(); return; }
     const sentences = splitSentences(cleaned);
     if (sentences.length === 0) { onEnd?.(); return; }
 
-    // Speak each sentence as a separate utterance for better prosody.
-    // Only the first fires onStart, all fire onBoundary, only the last fires onEnd.
     sentences.forEach((sentence, i) => {
       const u = new SpeechSynthesisUtterance(sentence);
+      this._activeUtterances.add(u);
       const v = this.currentVoice;
       if (v) { u.voice = v; u.lang = v.lang; }
       u.rate = this.opts.rate; u.pitch = this.opts.pitch; u.volume = this.opts.volume;
       if (i === 0) u.onstart = () => onStart?.();
       u.onboundary = () => onBoundary?.();
+
+      const cleanup = () => {
+        this._activeUtterances.delete(u);
+      };
+
       if (i === sentences.length - 1) {
-        u.onend = () => onEnd?.();
-        u.onerror = () => onEnd?.();
+        u.onend = () => { cleanup(); onEnd?.(); };
+        u.onerror = () => { cleanup(); onEnd?.(); };
       } else {
-        u.onerror = () => {};  // keep going on mid-sentence errors
+        u.onend = cleanup;
+        u.onerror = cleanup;
       }
       window.speechSynthesis.speak(u);
     });
   }
 
   cancel() {
-    if (this.supported) window.speechSynthesis.cancel();
+    this._activeUtterances.clear();
+    if (this.supported) {
+      try { window.speechSynthesis.cancel(); } catch {}
+    }
   }
 }
