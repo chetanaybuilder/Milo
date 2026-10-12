@@ -1,0 +1,9 @@
+node_modules/
+dist/
+build/
+.wrangler/
+.venv/
+__pycache__/
+package-lock.json
+*.min.js
+*.min.css

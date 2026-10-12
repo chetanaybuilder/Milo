@@ -1,10 +1,31 @@
 const WMO = {
-  0: 'clear skies', 1: 'mostly clear', 2: 'partly cloudy', 3: 'overcast',
-  45: 'fog', 48: 'freezing fog', 51: 'light drizzle', 53: 'drizzle', 55: 'heavy drizzle',
-  56: 'freezing drizzle', 57: 'freezing drizzle', 61: 'light rain', 63: 'rain', 65: 'heavy rain',
-  66: 'freezing rain', 67: 'freezing rain', 71: 'light snow', 73: 'snow', 75: 'heavy snow',
-  77: 'snow grains', 80: 'light showers', 81: 'showers', 82: 'heavy showers',
-  85: 'snow showers', 86: 'heavy snow showers', 95: 'thunderstorms', 96: 'thunderstorms with hail',
+  0: 'clear skies',
+  1: 'mostly clear',
+  2: 'partly cloudy',
+  3: 'overcast',
+  45: 'fog',
+  48: 'freezing fog',
+  51: 'light drizzle',
+  53: 'drizzle',
+  55: 'heavy drizzle',
+  56: 'freezing drizzle',
+  57: 'freezing drizzle',
+  61: 'light rain',
+  63: 'rain',
+  65: 'heavy rain',
+  66: 'freezing rain',
+  67: 'freezing rain',
+  71: 'light snow',
+  73: 'snow',
+  75: 'heavy snow',
+  77: 'snow grains',
+  80: 'light showers',
+  81: 'showers',
+  82: 'heavy showers',
+  85: 'snow showers',
+  86: 'heavy snow showers',
+  95: 'thunderstorms',
+  96: 'thunderstorms with hail',
   99: 'severe thunderstorms with hail',
 };
 
@@ -25,7 +46,7 @@ export async function getWeather(location) {
   try {
     const headers = {
       'User-Agent': 'MILO-Voice-Assistant/1.0 (https://milo-frontend.pages.dev)',
-      'Accept': 'application/json',
+      Accept: 'application/json',
     };
 
     const geoRes = await fetch(
@@ -34,7 +55,7 @@ export async function getWeather(location) {
         count: '1',
         language: 'en',
       })}`,
-      { headers },
+      { headers }
     );
     if (!geoRes.ok) throw new Error(`geo HTTP ${geoRes.status}`);
     const geoData = await geoRes.json();
@@ -50,7 +71,7 @@ export async function getWeather(location) {
         current:
           'temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m',
       })}`,
-      { headers },
+      { headers }
     );
     if (!wRes.ok) throw new Error(`weather HTTP ${wRes.status}`);
     const wData = await wRes.json();

@@ -7,9 +7,10 @@ import { classify } from './router.js';
 const MAX_HISTORY = 10;
 const MAX_CHARS = 1200;
 
-const BRAIN_ERR = "Milo's brain is temporarily unavailable.";
-const SEARCH_ERR = "I couldn't complete the web search right now.";
-const WEATHER_ERR = "I couldn't retrieve the latest weather data.";
+const BRAIN_ERR =
+  "I'm having trouble connecting to my reasoning engine right now. Please try again in a moment.";
+const SEARCH_ERR = "I couldn't reach the search service, but I'll answer with what I know.";
+const WEATHER_ERR = "I couldn't retrieve the latest weather data right now.";
 
 function line(event) {
   return JSON.stringify(event) + '\n';
@@ -46,7 +47,13 @@ export function respond(env, message, history) {
 
   const stream = new ReadableStream({
     async start(controller) {
-      const emit = (event) => controller.enqueue(encoder.encode(line(event)));
+      const emit = (event) => {
+        try {
+          controller.enqueue(encoder.encode(line(event)));
+        } catch {
+          // Stream might be closed if client aborted
+        }
+      };
 
       try {
         const route = classify(message, history);
@@ -69,7 +76,10 @@ export function respond(env, message, history) {
             if (e instanceof ToolError) {
               console.warn('weather failed:', e.message);
               if (e.message && e.message.includes('not found')) {
-                emit({ type: 'token', text: `I couldn't find the weather for "${route.location}". Please check the city name.` });
+                emit({
+                  type: 'token',
+                  text: `I couldn't find the weather for "${route.location}". Please check the city name.`,
+                });
               } else {
                 emit({ type: 'error', message: WEATHER_ERR });
               }
@@ -87,36 +97,33 @@ export function respond(env, message, history) {
           emit({ type: 'tool', tool: 'web' });
           try {
             const results = await search(env, message);
-            if (!results.length) {
-              emit({ type: 'token', text: 'I searched the web but found nothing useful for that.' });
-              emit({ type: 'done' });
-              controller.close();
-              return;
+            if (results && results.length > 0) {
+              emit({ type: 'sources', data: results });
+              extra = formatResults(results);
+            } else {
+              console.info(
+                '[Assistant] Search returned 0 results, proceeding to direct LLM response'
+              );
             }
-            emit({ type: 'sources', data: results });
-            extra = formatResults(results);
           } catch (e) {
-            if (e instanceof ToolError) {
-              console.warn('search failed:', e.message);
-              emit({ type: 'error', message: SEARCH_ERR });
-              emit({ type: 'done' });
-              controller.close();
-              return;
-            }
-            throw e;
+            console.warn('[Assistant] Search fallback triggered:', e.message);
+            // Non-fatal search failure: continue to LLM with graceful fallback
+            extra =
+              'Note: Real-time web search was unavailable for this query. Provide your best direct answer based on established knowledge.';
           }
         }
 
-        // --- LLM Streaming ---
+        // --- LLM Streaming with Fallback ---
+        let streamedTokens = 0;
         try {
           for await (const delta of streamGroq(env, buildMessages(history, message, extra))) {
             emit({ type: 'token', text: delta });
+            streamedTokens++;
           }
         } catch (e) {
-          if (e instanceof ProviderError) {
+          console.warn('[Assistant] LLM stream error:', e.message);
+          if (streamedTokens === 0) {
             emit({ type: 'error', message: BRAIN_ERR });
-          } else {
-            throw e;
           }
         }
 
@@ -128,7 +135,9 @@ export function respond(env, message, history) {
         emit({ type: 'done' });
       }
 
-      controller.close();
+      try {
+        controller.close();
+      } catch {}
     },
   });
 

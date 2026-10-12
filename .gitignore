@@ -1,10 +1,56 @@
+# Environment and Secret Files
 .env
+.env.*
 *.env
 !.env.example
+.dev.vars
+.dev.vars.*
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+*.p12
+
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
+
+# Production Builds
 dist/
+build/
+out/
+
+# Cloudflare Wrangler
+.wrangler/
+.mf/
+
+# Python
 __pycache__/
 .venv/
+env/
+venv/
+*.pyc
+*.pyo
 .pytest_cache/
-.wrangler/
-.dev.vars
+.coverage
+htmlcov/
+
+# Logs and Debugging
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS & Editor Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
