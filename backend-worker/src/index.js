@@ -76,6 +76,7 @@ app.use('/api/*', async (c, next) => {
 // Rate limit middleware for chat endpoint
 // ---------------------------------------------------------------------------
 app.use('/api/chat', async (c, next) => {
+  if (c.req.method === 'OPTIONS') return next();
   const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
   if (!checkRateLimit(ip)) {
     return c.json({ detail: 'Too many requests' }, 429);
@@ -87,6 +88,7 @@ app.use('/api/chat', async (c, next) => {
 // Max body size middleware (1 MB)
 // ---------------------------------------------------------------------------
 app.use('/api/chat', async (c, next) => {
+  if (c.req.method === 'OPTIONS') return next();
   const length = parseInt(c.req.header('content-length') || '0', 10);
   if (length > 1048576) {
     return c.json({ detail: 'Payload too large' }, 413);
@@ -97,6 +99,20 @@ app.use('/api/chat', async (c, next) => {
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
+app.get('/', (c) =>
+  c.json({
+    name: 'milo-api',
+    status: 'ok',
+    endpoints: {
+      health: '/api/health',
+      chat: '/api/chat',
+    },
+  })
+);
+
+app.get('/favicon.ico', (c) => c.text('', 204));
+app.get('/robots.txt', (c) => c.text('User-agent: *\nDisallow: /', 200, { 'Content-Type': 'text/plain' }));
+
 app.get('/api/health', (c) => {
   return c.json({
     status: 'ok',
