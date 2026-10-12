@@ -45,7 +45,7 @@ export async function getWeather(location) {
   let places, cur, p;
   try {
     const headers = {
-      'User-Agent': 'MILO-Voice-Assistant/1.0 (https://milo-frontend.pages.dev)',
+      'User-Agent': 'MILO-Voice-Assistant/1.0 (https://milo-voice.pages.dev)',
       Accept: 'application/json',
     };
 
