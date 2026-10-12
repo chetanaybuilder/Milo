@@ -6,10 +6,10 @@ import { BrowserTts } from './voice/tts/browserTts.js';
 import { LevelMeter } from './voice/audio/levelMeter.js';
 
 export const NOTICES = {
-  'mic-denied': 'Microphone access is required for voice interaction.',
-  'mic-unavailable': 'No working microphone was found.',
+  'mic-denied': 'Microphone permission was denied. Please allow microphone access in your browser settings.',
+  'mic-unavailable': 'No working microphone was detected on this device.',
   unsupported: 'Voice input is not supported in this browser. Try Chrome, Edge or Safari, or type instead.',
-  network: 'Speech recognition lost its connection. Try again.',
+  network: 'Speech recognition network error. Chrome speech requires access to Google speech services.',
 };
 
 export function useMilo(prefs) {

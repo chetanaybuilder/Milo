@@ -4,6 +4,11 @@ export class LevelMeter {
 
   async start() {
     if (this.stream) return;
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      const err = new Error('Microphone not supported');
+      err.name = 'NotSupportedError';
+      throw err;
+    }
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true },
     });
