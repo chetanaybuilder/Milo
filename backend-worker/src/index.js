@@ -47,11 +47,16 @@ app.use('/api/*', async (c, next) => {
     origin: (origin) => {
       if (!origin) return '*';
       if (origins.includes('*') || origins.includes(origin)) return origin;
-      if (origin.endsWith('.pages.dev') || origin.startsWith('http://localhost:')) return origin;
+      if (
+        origin.endsWith('.pages.dev') ||
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:')
+      )
+        return origin;
       return null;
     },
     allowMethods: ['GET', 'POST', 'OPTIONS'],
-    allowHeaders: ['Content-Type'],
+    allowHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
   return corsMiddleware(c, next);
 });

@@ -23,17 +23,23 @@ export class ToolError extends Error {
 export async function getWeather(location) {
   let places, cur, p;
   try {
+    const headers = {
+      'User-Agent': 'MILO-Voice-Assistant/1.0 (https://milo-frontend.pages.dev)',
+      'Accept': 'application/json',
+    };
+
     const geoRes = await fetch(
       `https://geocoding-api.open-meteo.com/v1/search?${new URLSearchParams({
         name: location,
         count: '1',
         language: 'en',
       })}`,
+      { headers },
     );
     if (!geoRes.ok) throw new Error(`geo HTTP ${geoRes.status}`);
     const geoData = await geoRes.json();
     places = geoData.results || [];
-    if (!places.length) throw new ToolError('location not found');
+    if (!places.length) throw new ToolError(`location '${location}' not found`);
     p = places[0];
 
     const wRes = await fetch(
@@ -44,6 +50,7 @@ export async function getWeather(location) {
         current:
           'temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m',
       })}`,
+      { headers },
     );
     if (!wRes.ok) throw new Error(`weather HTTP ${wRes.status}`);
     const wData = await wRes.json();

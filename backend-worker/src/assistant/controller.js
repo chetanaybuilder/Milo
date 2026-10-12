@@ -49,7 +49,7 @@ export function respond(env, message, history) {
       const emit = (event) => controller.enqueue(encoder.encode(line(event)));
 
       try {
-        const route = classify(message);
+        const route = classify(message, history);
         let extra = null;
 
         // --- Weather ---
@@ -68,7 +68,11 @@ export function respond(env, message, history) {
           } catch (e) {
             if (e instanceof ToolError) {
               console.warn('weather failed:', e.message);
-              emit({ type: 'error', message: WEATHER_ERR });
+              if (e.message && e.message.includes('not found')) {
+                emit({ type: 'token', text: `I couldn't find the weather for "${route.location}". Please check the city name.` });
+              } else {
+                emit({ type: 'error', message: WEATHER_ERR });
+              }
             } else {
               throw e;
             }

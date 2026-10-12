@@ -58,7 +58,7 @@ export class VoiceController {
     stt.onError = (code) => {
       if (code === 'not-allowed' || code === 'service-not-allowed') this.fail('mic-denied');
       else if (code === 'audio-capture') this.fail('mic-unavailable');
-      else if (code === 'network') this.setError('network');
+      else if (code === 'network') this.fail('network');
     };
     stt.onEnd = () => {
       // Browsers end recognition sessions on their own; keep Live Mode going.
@@ -77,9 +77,19 @@ export class VoiceController {
   isEcho(t) { const n = norm(t); return n.length > 0 && this.spoken.includes(n); }
 
   async startLive() {
-    if (!this.stt.supported) { this.on.error?.('unsupported'); return false; }
-    try { await this.meter.start(); }
-    catch (e) { this.on.error?.(e?.name === 'NotAllowedError' ? 'mic-denied' : 'mic-unavailable'); return false; }
+    if (!this.stt.supported) {
+      this.on.error?.('unsupported');
+      this.setError('unsupported');
+      return false;
+    }
+    try {
+      await this.meter.start();
+    } catch (e) {
+      const code = e?.name === 'NotAllowedError' ? 'mic-denied' : 'mic-unavailable';
+      this.on.error?.(code);
+      this.setError(code);
+      return false;
+    }
     this.live = true;
     this.stt.start();
     this.on.live?.(true);
