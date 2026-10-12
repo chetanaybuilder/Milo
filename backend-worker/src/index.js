@@ -44,8 +44,13 @@ function checkRateLimit(ip) {
 app.use('/api/*', async (c, next) => {
   const origins = corsOrigins(c.env);
   const corsMiddleware = cors({
-    origin: origins,
-    allowMethods: ['GET', 'POST'],
+    origin: (origin) => {
+      if (!origin) return '*';
+      if (origins.includes('*') || origins.includes(origin)) return origin;
+      if (origin.endsWith('.pages.dev') || origin.startsWith('http://localhost:')) return origin;
+      return null;
+    },
+    allowMethods: ['GET', 'POST', 'OPTIONS'],
     allowHeaders: ['Content-Type'],
   });
   return corsMiddleware(c, next);
