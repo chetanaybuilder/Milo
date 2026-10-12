@@ -1,0 +1,12 @@
+name = "milo-api"
+main = "src/index.js"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Environment variables are set via `wrangler secret put` or the Cloudflare dashboard.
+# Do NOT commit secrets here.
+# Required secrets: GROQ_API_KEY, TAVILY_API_KEY
+# Optional vars: GROQ_MODEL, CORS_ORIGINS
+
+[vars]
+GROQ_MODEL = "llama-3.3-70b-versatile"
