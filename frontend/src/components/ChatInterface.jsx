@@ -5,7 +5,9 @@ import WeatherCard from './WeatherCard.jsx';
 export default function ChatInterface({ messages, onSend, busy }) {
   const [text, setText] = useState('');
   const end = useRef(null);
-  useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [messages]);
+  useEffect(() => {
+    end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages]);
 
   const submit = (e) => {
     e.preventDefault();

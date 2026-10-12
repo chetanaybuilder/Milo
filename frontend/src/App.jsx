@@ -29,6 +29,21 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(() => window.innerWidth >= 900);
   const busy = ['THINKING', 'TOOL_USE', 'SPEAKING'].includes(milo.state);
 
+  // Keyboard shortcut: Space or Escape interrupts speaking when not typing in an input
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (milo.state !== 'SPEAKING') return;
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      if (e.key === ' ' || e.key === 'Escape') {
+        e.preventDefault();
+        milo.interrupt();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [milo]);
+
   return (
     <div className={`app${chatOpen ? ' chat-open' : ''}`}>
       <header>
@@ -41,10 +56,10 @@ export default function App() {
         </div>
       </header>
       <main>
-        <MiloCore state={milo.state} getLevel={milo.getLevel} reduced={reduced} />
+        <MiloCore state={milo.state} getLevel={milo.getLevel} reduced={reduced} onInterrupt={milo.interrupt} />
         <div className="hud">
           <ToolStatus state={milo.state} tool={milo.tool} />
-          <VoiceInterface live={milo.live} onToggle={milo.toggleLive} interim={milo.interim}
+          <VoiceInterface live={milo.live} onToggle={milo.toggleLive} onInterrupt={milo.interrupt} interim={milo.interim}
             notice={milo.notice} support={milo.support} state={milo.state} />
         </div>
       </main>
