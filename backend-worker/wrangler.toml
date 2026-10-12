@@ -9,4 +9,4 @@ compatibility_flags = ["nodejs_compat"]
 # Optional vars: GROQ_MODEL, CORS_ORIGINS
 
 [vars]
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"
