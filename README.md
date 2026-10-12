@@ -28,16 +28,18 @@ MILO is a voice-native conversational AI assistant. It provides a seamless, hand
 <!-- Add placeholder screenshots here -->
 
 ## Architecture
-MILO is split into a Python FastAPI backend and a React/Three.js frontend. See the detailed architecture diagram in `docs/architecture.md`.
+MILO is split into a Cloudflare Worker backend (Hono) and a React/Three.js frontend (Cloudflare Pages). See the detailed architecture diagram in `docs/architecture.md`.
 
 ## Tech Stack
-- **Backend**: Python, FastAPI, httpx, Groq
+- **Backend**: JavaScript, Hono (Cloudflare Workers), Groq
 - **Frontend**: React, Vite, Three.js (@react-three/fiber), Vanilla CSS
+- **Deployment**: Cloudflare Pages (frontend), Cloudflare Workers (backend)
 
 ## Project Structure
 ```text
 milo/
-├── backend/          # FastAPI server and AI controllers
+├── backend/          # Original Python backend (reference)
+├── backend-worker/   # Cloudflare Worker backend (production)
 └── frontend/         # React, Three.js UI, Voice controllers
 ```
 
@@ -48,16 +50,15 @@ milo/
 
 ## Quick Start
 
-### Backend
+### Backend (Cloudflare Worker)
 ```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with your keys
-uvicorn app.main:app --reload
+cd backend-worker
+npm install
+cp .dev.vars.example .dev.vars
+# Edit .dev.vars with your API keys
+npm run dev
 ```
+The Worker dev server runs at `http://localhost:8787`.
 
 ### Frontend
 ```bash
@@ -65,35 +66,44 @@ cd frontend
 npm install
 npm run dev
 ```
+The frontend dev server runs at `http://localhost:5173` and proxies `/api` requests to the Worker.
 
 ## Deployment
 
-MILO is designed to be easily deployed to modern cloud platforms:
+MILO is deployed entirely on **Cloudflare** — frontend on Cloudflare Pages, backend on Cloudflare Workers.
 
-### Frontend (Vercel)
-The frontend is a standard Vite application optimized for Vercel.
-1. Connect your GitHub repository to Vercel.
-2. Select the `frontend` directory as the Root Directory.
-3. Vercel will automatically detect the Vite framework and build settings (`npm run build`, output: `dist`).
-4. Set the Environment Variable `VITE_API_BASE_URL` to your backend URL (e.g., `https://api.yourdomain.com` or `http://your-ravenhost-ip:8000`).
+### Frontend (Cloudflare Pages)
+1. Connect your GitHub repository to [Cloudflare Pages](https://pages.cloudflare.com/).
+2. Set the **Root Directory** to `frontend`.
+3. Set the **Build Command** to `npm run build` and **Output Directory** to `dist`.
+4. Add the environment variable `VITE_API_BASE_URL` pointing to your Worker URL (e.g., `https://milo-api.<your-subdomain>.workers.dev`).
 5. Deploy.
 
-### Backend (Ravenhost / VPS via Docker)
-The backend is packaged as a standard Docker container, making it simple to host on Ravenhost or any Docker-compatible VPS.
-1. Upload the contents of the `backend` folder to your Ravenhost server.
-2. Build the Docker image:
+### Backend (Cloudflare Workers)
+1. Install dependencies:
    ```bash
-   docker build -t milo-backend .
+   cd backend-worker
+   npm install
    ```
-3. Run the container, passing your API keys and allowed CORS origin (your Vercel URL):
+2. Copy `.dev.vars.example` to `.dev.vars` and fill in your API keys for local development:
    ```bash
-   docker run -d -p 8000:8000 \
-     -e GROQ_API_KEY=your_groq_key \
-     -e TAVILY_API_KEY=your_tavily_key \
-     -e CORS_ORIGINS=https://your-milo-frontend.vercel.app \
-     milo-backend
+   cp .dev.vars.example .dev.vars
    ```
-4. The API will now be available on port 8000 of your Ravenhost IP or domain. Ensure your domain points to this port, and configure an SSL reverse proxy (like Nginx/Caddy) if needed for HTTPS.
+3. **Local development:**
+   ```bash
+   npm run dev
+   ```
+   The Worker runs at `http://localhost:8787`.
+4. **Set production secrets** (one-time):
+   ```bash
+   npx wrangler secret put GROQ_API_KEY
+   npx wrangler secret put TAVILY_API_KEY
+   npx wrangler secret put CORS_ORIGINS
+   ```
+5. **Deploy to Cloudflare:**
+   ```bash
+   npm run deploy
+   ```
 
 ## Configuration
 
@@ -127,15 +137,21 @@ For the best voice experience, use **Microsoft Edge** on Windows, or Google Chro
 - **API Errors**: Check the backend console. Ensure your `GROQ_API_KEY` and `TAVILY_API_KEY` are valid and have sufficient quota.
 
 ## Testing
-To run backend tests:
+To run original backend tests (Python, reference only):
 ```bash
 cd backend
 PYTHONPATH=. pytest
 ```
-To build frontend:
+To build and preview the frontend:
 ```bash
 cd frontend
 npm run build
+npm run preview
+```
+To run the Worker backend locally:
+```bash
+cd backend-worker
+npm run dev
 ```
 
 ## Roadmap

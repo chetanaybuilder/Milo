@@ -1,0 +1,15 @@
+# Cloudflare Pages build configuration
+name = "milo-frontend"
+
+[build]
+command = "npm run build"
+cwd = "."
+
+[build.upload]
+dir = "dist"
+
+# SPA fallback — serve index.html for all routes
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
