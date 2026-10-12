@@ -38,9 +38,11 @@ export class BrowserStt extends Stt {
     }
 
     try {
+      const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       const r = new this.SR();
       r.lang = this.lang;
-      r.continuous = true;
+      // iOS Safari and mobile WebViews require continuous = false; desktop uses continuous = true
+      r.continuous = !isMobile;
       r.interimResults = true;
       r.maxAlternatives = 1;
 

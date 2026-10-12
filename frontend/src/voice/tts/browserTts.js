@@ -70,6 +70,17 @@ export class BrowserTts extends Tts {
     this.opts = { ...this.opts, ...opts };
   }
 
+  unlock() {
+    if (!this.supported) return;
+    try {
+      window.speechSynthesis.resume();
+      const u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0.01;
+      u.rate = 10;
+      window.speechSynthesis.speak(u);
+    } catch {}
+  }
+
   speak(rawText, { onStart, onBoundary, onEnd } = {}) {
     if (!this.supported) { onEnd?.(); return; }
     try { window.speechSynthesis.resume(); } catch {}
@@ -82,7 +93,8 @@ export class BrowserTts extends Tts {
       const u = new SpeechSynthesisUtterance(sentence);
       this._activeUtterances.add(u);
       const v = this.currentVoice;
-      if (v) { u.voice = v; u.lang = v.lang; }
+      if (v) u.voice = v;
+      u.lang = v?.lang || (typeof navigator !== 'undefined' && (navigator.language || navigator.languages?.[0])) || 'en-US';
       u.rate = this.opts.rate; u.pitch = this.opts.pitch; u.volume = this.opts.volume;
       if (i === 0) u.onstart = () => onStart?.();
       u.onboundary = () => onBoundary?.();
