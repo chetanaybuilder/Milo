@@ -9,7 +9,6 @@ export const NOTICES = {
   'mic-denied': 'Microphone permission was denied. Please allow microphone access in your browser settings.',
   'mic-unavailable': 'No working microphone was detected on this device.',
   unsupported: 'Voice input is not supported in this browser. Try Chrome, Edge or Safari, or type instead.',
-  network: 'Voice recognition connection hiccup. Reconnecting automatically...',
 };
 
 export function useMilo(prefs) {

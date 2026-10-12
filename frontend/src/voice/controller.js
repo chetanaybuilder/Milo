@@ -69,10 +69,6 @@ export class VoiceController {
         this.fail('mic-denied');
       } else if (code === 'audio-capture') {
         this.fail('mic-unavailable');
-      } else if (code === 'network') {
-        // Show gentle reconnecting status without killing Live mode session
-        this.setError('network');
-        this.on.error?.('network');
       }
     };
 

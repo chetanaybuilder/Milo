@@ -9,9 +9,7 @@ export class LevelMeter {
       err.name = 'NotSupportedError';
       throw err;
     }
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true },
-    });
+    this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     this.ctx = new AC();

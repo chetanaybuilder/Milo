@@ -26,11 +26,12 @@ export class BrowserStt extends Stt {
     try {
       const r = new this.SR();
       r.lang = this.lang;
-      r.continuous = true;
+      // In Chromium, continuous: false prevents the Google Speech server from timing out on silence
+      r.continuous = false;
       r.interimResults = true;
+      r.maxAlternatives = 1;
 
       r.onresult = (e) => {
-        // Reset network error counter on any successful speech reception
         this.networkErrorCount = 0;
         let interim = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -47,30 +48,28 @@ export class BrowserStt extends Stt {
 
       r.onerror = (e) => {
         const err = e?.error || '';
-        // Harmless events in Web Speech API
+        // Harmless browser lifecycle events
         if (err === 'no-speech' || err === 'aborted') {
           return;
         }
 
         if (err === 'network') {
           this.networkErrorCount++;
-          console.warn(`Speech recognition network notice (attempt ${this.networkErrorCount})`);
-          // Only alert user if network fails repeatedly 4+ times without success
-          if (this.networkErrorCount >= 4) {
-            this.onError('network');
-          }
+          // Silent retry in background - do not disrupt the UI
           return;
         }
 
-        // Fatal errors (e.g. not-allowed, audio-capture)
-        this.onError(err);
+        // Only propagate fatal device/permission errors
+        if (err === 'not-allowed' || err === 'service-not-allowed' || err === 'audio-capture') {
+          this.onError(err);
+        }
       };
 
       r.onend = () => {
         this.rec = null;
         if (this.active) {
-          // Automatic resilient restart with backoff if network issues occurred
-          const delay = this.networkErrorCount > 0 ? Math.min(600 * this.networkErrorCount, 2500) : 200;
+          // Seamlessly restart for phrase-by-phrase natural conversation
+          const delay = this.networkErrorCount > 0 ? Math.min(300 * this.networkErrorCount, 1200) : 80;
           this._restartTimer = setTimeout(() => {
             if (this.active) this._startRecognition();
           }, delay);
@@ -86,7 +85,7 @@ export class BrowserStt extends Stt {
       if (this.active) {
         this._restartTimer = setTimeout(() => {
           if (this.active) this._startRecognition();
-        }, 500);
+        }, 200);
       }
     }
   }
