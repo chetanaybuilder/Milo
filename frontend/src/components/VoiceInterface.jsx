@@ -1,7 +1,16 @@
-export default function VoiceInterface({ live, onToggle, interim, notice, support }) {
+export default function VoiceInterface({ live, onToggle, interim, notice, support, state }) {
+  let statusText = '';
+  if (interim) {
+    statusText = interim;
+  } else if (live) {
+    if (state === 'SPEAKING') statusText = 'MILO is speaking...';
+    else if (state === 'THINKING' || state === 'TOOL_USE') statusText = 'Thinking...';
+    else statusText = 'Listening... Speak anytime';
+  }
+
   return (
     <div className="voice">
-      <p className="interim" aria-live="polite">{interim || (live ? 'Listening. Speak any time, even over MILO.' : '')}</p>
+      <p className="interim" aria-live="polite">{statusText}</p>
       <button className={`mic${live ? ' on' : ''}`} onClick={onToggle} aria-pressed={live}
         aria-label={live ? 'Turn off Live Mode' : 'Turn on Live Mode'}>
         <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
@@ -11,7 +20,6 @@ export default function VoiceInterface({ live, onToggle, interim, notice, suppor
       </button>
       {!support.stt && <p className="note">Voice input needs Chrome, Edge or Safari. Typing still works.</p>}
       {notice && <p className="note" role="alert">{notice}</p>}
-      <p className="note" style={{ opacity: 0.6 }}>For the best voice, use Microsoft Edge on Windows.</p>
     </div>
   );
 }

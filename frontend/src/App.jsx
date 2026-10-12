@@ -45,7 +45,7 @@ export default function App() {
         <div className="hud">
           <ToolStatus state={milo.state} tool={milo.tool} />
           <VoiceInterface live={milo.live} onToggle={milo.toggleLive} interim={milo.interim}
-            notice={milo.notice} support={milo.support} />
+            notice={milo.notice} support={milo.support} state={milo.state} />
         </div>
       </main>
       <aside id="chat-panel" className="panel" hidden={!chatOpen} aria-label="Chat">
