@@ -98,6 +98,9 @@ export class VoiceController {
       return false;
     }
 
+    // Explicitly unlock mobile audio playback within the user's tap gesture
+    this.tts.unlock?.();
+
     clearTimeout(this._micResumeTimer);
     this.live = true;
     this.pending = 0;
@@ -108,11 +111,14 @@ export class VoiceController {
     this.setState(S.LISTENING);
     this.stt.start();
 
-    // Start level meter non-blockingly for visual animations
-    try {
-      await this.meter.start();
-    } catch (e) {
-      console.warn('[VoiceController] Audio level meter failed to start:', e);
+    // Start level meter ONLY on desktop; on mobile devices getUserMedia takes exclusive hardware mic capture and breaks SpeechRecognition
+    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (!isMobile) {
+      try {
+        await this.meter.start();
+      } catch (e) {
+        console.warn('[VoiceController] Audio level meter failed to start:', e);
+      }
     }
 
     return true;

@@ -42,8 +42,7 @@ export function useMilo(prefs) {
   const send = useCallback(async (raw) => {
     const text = raw.trim().slice(0, 2000);
     if (!text) return;
-    // Mark that user has interacted (skip greeting if Go Live comes later)
-    voice._hasUserInput = true;
+    voice.tts.unlock?.();
     abortRef.current?.abort();
     voice.cancelSpeech();
     const id = ++reqRef.current;
