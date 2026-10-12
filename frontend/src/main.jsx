@@ -1,6 +1,13 @@
-import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
-import './styles.css';
+import './styles/styles.css';
+import './styles/landing.css';
 
-createRoot(document.getElementById('root')).render(<App />);
+/**
+ * Entry point for MILO application.
+ * Mounts the root React component tree into the DOM.
+ */
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  createRoot(rootElement).render(<App />);
+}

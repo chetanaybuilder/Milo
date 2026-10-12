@@ -13,12 +13,16 @@ const WEATHER_THEN_LOCATION =
 const WEB =
   /\b(latest|news|currently|current|recent(ly)?|newest|breaking|this (week|month|year)|right now|who (is|won)|price of|stock|released?|look up|search (for|the web)|202[5-9])\b/i;
 
-const QUESTION_WORDS = /^(what('?s)?|how('?s)?|tell|check|get|give|show|can|could|is|are|the|me|my|about)\b/i;
+const QUESTION_WORDS =
+  /^(what('?s)?|how('?s)?|tell|check|get|give|show|can|could|is|are|the|me|my|about)\b/i;
 
 function cleanLocation(loc) {
   if (!loc) return null;
   const cleaned = loc
-    .replace(/\b(today|tomorrow|tonight|right now|currently|now|please|outside|this week|the|like)\b/gi, '')
+    .replace(
+      /\b(today|tomorrow|tonight|right now|currently|now|please|outside|this week|the|like)\b/gi,
+      ''
+    )
     .replace(/[?.!,;:]+$/, '')
     .trim();
   if (QUESTION_WORDS.test(cleaned) && cleaned.split(/\s+/).length <= 2) {
@@ -39,7 +43,11 @@ export function classify(message, history = []) {
   // Check if answering a follow-up asking for the city
   if (history && history.length > 0) {
     const last = history[history.length - 1];
-    if (last && last.role === 'assistant' && /which city should i check the weather for/i.test(last.content || '')) {
+    if (
+      last &&
+      last.role === 'assistant' &&
+      /which city should i check the weather for/i.test(last.content || '')
+    ) {
       const loc = cleanLocation(trimmed.replace(/^in\s+/i, ''));
       if (loc && loc.split(/\s+/).length <= 4) {
         return { kind: 'weather', location: loc };

@@ -5,18 +5,33 @@
  */
 
 export function groqKey(env) {
-  return env.GROQ_API_KEY || '';
+  return env?.GROQ_API_KEY || '';
 }
 
 export function groqModel(env) {
-  return env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  return env?.GROQ_MODEL || 'llama-3.3-70b-versatile';
 }
 
 export function tavilyKey(env) {
-  return env.TAVILY_API_KEY || '';
+  return env?.TAVILY_API_KEY || '';
 }
 
+/**
+ * Return strict, normalized CORS allowlist array from environment.
+ * Default includes local dev origins if CORS_ORIGINS is not set.
+ */
 export function corsOrigins(env) {
-  const raw = env.CORS_ORIGINS || 'http://localhost:5173';
-  return raw.split(',').map((o) => o.trim()).filter(Boolean);
+  const raw = env?.CORS_ORIGINS || '';
+  if (!raw) {
+    return [
+      'http://localhost:5173',
+      'http://localhost:4173',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:4173',
+    ];
+  }
+  return raw
+    .split(',')
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
 }
